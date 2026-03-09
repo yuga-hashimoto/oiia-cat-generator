@@ -13,6 +13,7 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [motionPattern, setMotionPattern] = useState<MotionPattern>("oiia");
   const [error, setError] = useState<string | null>(null);
+  const [removeBackground, setRemoveBackground] = useState(true);
 
   const handleImageSelect = useCallback((file: File) => {
     setImage(file);
@@ -33,6 +34,7 @@ export default function Home() {
       const formData = new FormData();
       formData.append("image", image);
       formData.append("motion", motionPattern);
+      formData.append("removeBackground", removeBackground ? "true" : "false");
 
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -52,7 +54,7 @@ export default function Home() {
     } finally {
       setIsGenerating(false);
     }
-  }, [image, motionPattern]);
+  }, [image, motionPattern, removeBackground]);
 
   const handleReset = useCallback(() => {
     setImage(null);
@@ -114,6 +116,54 @@ export default function Home() {
                       selected={motionPattern}
                       onSelect={setMotionPattern}
                     />
+
+                    {/* AI Background Removal Toggle */}
+                    <div className="glass-card p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center">
+                            <svg
+                              className="w-5 h-5 text-primary"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={1.5}
+                                d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"
+                              />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-white/90 font-medium text-sm">
+                              AI Background Removal
+                            </p>
+                            <p className="text-white/40 text-xs">
+                              Isolate your cat with ONNX AI model
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={removeBackground}
+                          onClick={() => setRemoveBackground((v) => !v)}
+                          className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
+                            removeBackground
+                              ? "bg-gradient-to-r from-primary to-accent"
+                              : "bg-white/20"
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                              removeBackground ? "translate-x-5" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
 
                     <div className="flex justify-center">
                       <button
