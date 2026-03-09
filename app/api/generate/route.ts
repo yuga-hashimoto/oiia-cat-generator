@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
     const imageFile = formData.get("image") as File | null;
     const motion = (formData.get("motion") as string) || "oiia";
     const shouldRemoveBackground = formData.get("removeBackground") === "true";
+    const enableBgm = formData.get("enableBgm") === "true";
 
     // Validate inputs
     if (!imageFile) {
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
       imageBuffer,
       motion: motion as MotionPattern,
       backgroundRemoved,
+      enableBgm,
     });
 
     // Return video as response
