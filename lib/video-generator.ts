@@ -14,6 +14,7 @@ interface GenerateOptions {
   imageBuffer: Buffer;
   motion: MotionPattern;
   backgroundRemoved?: boolean; // true if the image already has background removed
+  enableBgm?: boolean; // true to merge Ievan Polkka BGM into the video
   width?: number;
   height?: number;
   fps?: number;
@@ -178,11 +179,17 @@ function generateOrbsSVG(width: number, height: number, time: number): string {
   </svg>`;
 }
 
+// Resolve the path to the bundled BGM file
+function getBgmPath(): string {
+  return path.join(process.cwd(), "public", "audio", "ievan-polkka.mp3");
+}
+
 export async function generateVideo(options: GenerateOptions): Promise<Buffer> {
   const {
     imageBuffer,
     motion = "oiia",
     backgroundRemoved = false,
+    enableBgm = false,
     width = 600,
     height = 600,
     fps = 24,
@@ -219,8 +226,8 @@ export async function generateVideo(options: GenerateOptions): Promise<Buffer> {
       await Promise.all(framePromises.slice(i, i + batchSize));
     }
 
-    // Encode frames to MP4 with FFmpeg
-    const outputPath = path.join(tmpDir, "output.mp4");
+    // Encode frames to MP4 (video-only first)
+    const videoOnlyPath = path.join(tmpDir, "video_only.mp4");
 
     await new Promise<void>((resolve, reject) => {
       ffmpeg()
@@ -234,13 +241,48 @@ export async function generateVideo(options: GenerateOptions): Promise<Buffer> {
           "-movflags +faststart",
           `-r ${fps}`,
         ])
-        .output(outputPath)
+        .output(videoOnlyPath)
         .on("end", () => resolve())
         .on("error", (err: Error) => reject(err))
         .run();
     });
 
-    const videoBuffer = await fs.readFile(outputPath);
+    // If BGM is enabled, merge audio track
+    let finalOutputPath = videoOnlyPath;
+
+    if (enableBgm) {
+      const bgmPath = getBgmPath();
+      try {
+        await fs.access(bgmPath);
+        const withBgmPath = path.join(tmpDir, "output_bgm.mp4");
+        const fadeOutStart = Math.max(0, duration - 0.5); // fade out in last 0.5s
+
+        await new Promise<void>((resolve, reject) => {
+          ffmpeg()
+            .input(videoOnlyPath)
+            .input(bgmPath)
+            .outputOptions([
+              "-c:v copy",
+              "-c:a aac",
+              "-b:a 128k",
+              "-shortest",
+              "-movflags +faststart",
+              `-af`, `afade=t=in:st=0:d=0.3,afade=t=out:st=${fadeOutStart}:d=0.5`,
+            ])
+            .output(withBgmPath)
+            .on("end", () => resolve())
+            .on("error", (err: Error) => reject(err))
+            .run();
+        });
+
+        finalOutputPath = withBgmPath;
+      } catch {
+        console.warn("BGM file not found, skipping audio merge:", bgmPath);
+        // Fall back to video-only output
+      }
+    }
+
+    const videoBuffer = await fs.readFile(finalOutputPath);
     return videoBuffer;
   } finally {
     // Cleanup temp files
