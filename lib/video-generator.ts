@@ -9,12 +9,14 @@ import os from "os";
 ffmpeg.setFfmpegPath(ffmpegStatic as string);
 
 export type MotionPattern = "oiia" | "vibing" | "bounce";
+export type BgmMode = "off" | "default" | "custom";
 
 interface GenerateOptions {
   imageBuffer: Buffer;
   motion: MotionPattern;
-  backgroundRemoved?: boolean; // true if the image already has background removed
-  enableBgm?: boolean; // true to merge Ievan Polkka BGM into the video
+  backgroundRemoved?: boolean;
+  bgmMode?: BgmMode;
+  customBgmPath?: string; // path to user-uploaded audio file (used when bgmMode is "custom")
   width?: number;
   height?: number;
   fps?: number;
@@ -179,9 +181,17 @@ function generateOrbsSVG(width: number, height: number, time: number): string {
   </svg>`;
 }
 
-// Resolve the path to the bundled BGM file
-function getBgmPath(): string {
-  return path.join(process.cwd(), "public", "audio", "ievan-polkka.mp3");
+// Resolve the path to the bundled default BGM file
+function getDefaultBgmPath(): string {
+  return path.join(process.cwd(), "public", "audio", "psytrance-loop.mp3");
+}
+
+// Resolve the BGM file path based on mode
+function resolveBgmPath(bgmMode: BgmMode, customBgmPath?: string): string | null {
+  if (bgmMode === "off") return null;
+  if (bgmMode === "custom" && customBgmPath) return customBgmPath;
+  if (bgmMode === "default") return getDefaultBgmPath();
+  return null;
 }
 
 export async function generateVideo(options: GenerateOptions): Promise<Buffer> {
@@ -189,7 +199,8 @@ export async function generateVideo(options: GenerateOptions): Promise<Buffer> {
     imageBuffer,
     motion = "oiia",
     backgroundRemoved = false,
-    enableBgm = false,
+    bgmMode = "off",
+    customBgmPath,
     width = 600,
     height = 600,
     fps = 24,
@@ -249,9 +260,9 @@ export async function generateVideo(options: GenerateOptions): Promise<Buffer> {
 
     // If BGM is enabled, merge audio track
     let finalOutputPath = videoOnlyPath;
+    const bgmPath = resolveBgmPath(bgmMode, customBgmPath);
 
-    if (enableBgm) {
-      const bgmPath = getBgmPath();
+    if (bgmPath) {
       try {
         await fs.access(bgmPath);
         const withBgmPath = path.join(tmpDir, "output_bgm.mp4");
@@ -267,7 +278,8 @@ export async function generateVideo(options: GenerateOptions): Promise<Buffer> {
               "-b:a 128k",
               "-shortest",
               "-movflags +faststart",
-              `-af`, `afade=t=in:st=0:d=0.3,afade=t=out:st=${fadeOutStart}:d=0.5`,
+              `-af`,
+              `afade=t=in:st=0:d=0.3,afade=t=out:st=${fadeOutStart}:d=0.5`,
             ])
             .output(withBgmPath)
             .on("end", () => resolve())
