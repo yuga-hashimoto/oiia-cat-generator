@@ -13,6 +13,7 @@ export type MotionPattern = "oiia" | "vibing" | "bounce";
 interface GenerateOptions {
   imageBuffer: Buffer;
   motion: MotionPattern;
+  backgroundRemoved?: boolean; // true if the image already has background removed
   width?: number;
   height?: number;
   fps?: number;
@@ -61,14 +62,16 @@ async function generateFrame(
   width: number,
   height: number,
   transform: { angle: number; scaleX: number; scaleY: number; translateY: number },
-  frameIndex: number
+  frameIndex: number,
+  backgroundRemoved: boolean
 ): Promise<Buffer> {
-  const imgSize = Math.min(width, height) * 0.6;
+  const imgSize = Math.min(width, height) * (backgroundRemoved ? 0.7 : 0.6);
   const scaledW = Math.round(imgSize * transform.scaleX);
   const scaledH = Math.round(imgSize * transform.scaleY);
 
-  // Resize and prepare the cat image
+  // Resize and prepare the cat image (ensure alpha channel for transparency)
   const resizedCat = await sharp(imageBuffer)
+    .ensureAlpha()
     .resize(scaledW, scaledH, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .png()
     .toBuffer();
@@ -91,7 +94,39 @@ async function generateFrame(
   const time = frameIndex / 24;
   const orbs = generateOrbsSVG(width, height, time);
 
-  // Compose the frame: dark background + orbs + cat
+  // Build composite layers
+  const layers: sharp.OverlayOptions[] = [
+    {
+      input: Buffer.from(orbs),
+      top: 0,
+      left: 0,
+    },
+  ];
+
+  // When background is removed, add a subtle shadow under the cat
+  if (backgroundRemoved) {
+    const shadowSvg = generateShadowSVG(
+      width,
+      height,
+      Math.max(0, left) + rw / 2,
+      Math.max(0, top) + rh - 10,
+      rw * 0.6
+    );
+    layers.push({
+      input: Buffer.from(shadowSvg),
+      top: 0,
+      left: 0,
+    });
+  }
+
+  // Add the cat image
+  layers.push({
+    input: rotatedCat,
+    top: Math.max(0, top),
+    left: Math.max(0, left),
+  });
+
+  // Compose the frame: dark background + orbs + (optional shadow) + cat
   const frame = await sharp({
     create: {
       width,
@@ -100,22 +135,25 @@ async function generateFrame(
       background: { r: 13, g: 13, b: 13, alpha: 255 },
     },
   })
-    .composite([
-      {
-        input: Buffer.from(orbs),
-        top: 0,
-        left: 0,
-      },
-      {
-        input: rotatedCat,
-        top: Math.max(0, top),
-        left: Math.max(0, left),
-      },
-    ])
+    .composite(layers)
     .png()
     .toBuffer();
 
   return frame;
+}
+
+// Generate SVG for a subtle drop shadow beneath the cat
+function generateShadowSVG(
+  width: number,
+  height: number,
+  cx: number,
+  cy: number,
+  rx: number
+): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+    <defs><filter id="shadowBlur"><feGaussianBlur stdDeviation="12"/></filter></defs>
+    <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${rx * 0.25}" fill="rgba(0,0,0,0.35)" filter="url(#shadowBlur)"/>
+  </svg>`;
 }
 
 // Generate SVG for background orbs
@@ -144,6 +182,7 @@ export async function generateVideo(options: GenerateOptions): Promise<Buffer> {
   const {
     imageBuffer,
     motion = "oiia",
+    backgroundRemoved = false,
     width = 600,
     height = 600,
     fps = 24,
@@ -165,7 +204,7 @@ export async function generateVideo(options: GenerateOptions): Promise<Buffer> {
       const transform = config.getTransform(t, i, totalFrames);
 
       framePromises.push(
-        generateFrame(imageBuffer, width, height, transform, i).then(
+        generateFrame(imageBuffer, width, height, transform, i, backgroundRemoved).then(
           async (frameBuffer) => {
             const framePath = path.join(framesDir, `frame_${String(i).padStart(4, "0")}.png`);
             await fs.writeFile(framePath, frameBuffer);
