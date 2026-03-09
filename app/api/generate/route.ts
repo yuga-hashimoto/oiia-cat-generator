@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateVideo, type MotionPattern } from "@/lib/video-generator";
+import { removeImageBackground } from "@/lib/background-removal";
 
-export const maxDuration = 60; // Allow up to 60 seconds for video generation
+export const maxDuration = 120; // Allow up to 120 seconds (background removal + video generation)
 
 const VALID_MOTIONS = new Set(["oiia", "vibing", "bounce"]);
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -11,6 +12,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const imageFile = formData.get("image") as File | null;
     const motion = (formData.get("motion") as string) || "oiia";
+    const shouldRemoveBackground = formData.get("removeBackground") === "true";
 
     // Validate inputs
     if (!imageFile) {
@@ -36,12 +38,25 @@ export async function POST(request: NextRequest) {
 
     // Convert File to Buffer
     const arrayBuffer = await imageFile.arrayBuffer();
-    const imageBuffer = Buffer.from(arrayBuffer);
+    let imageBuffer = Buffer.from(arrayBuffer);
+
+    // Apply AI background removal if requested
+    let backgroundRemoved = false;
+    if (shouldRemoveBackground) {
+      try {
+        imageBuffer = await removeImageBackground(imageBuffer);
+        backgroundRemoved = true;
+      } catch (bgError) {
+        console.warn("Background removal failed, proceeding with original image:", bgError);
+        // Fall back to original image — don't block video generation
+      }
+    }
 
     // Generate video
     const videoBuffer = await generateVideo({
       imageBuffer,
       motion: motion as MotionPattern,
+      backgroundRemoved,
     });
 
     // Return video as response
