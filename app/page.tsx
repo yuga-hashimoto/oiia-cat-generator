@@ -14,6 +14,7 @@ export default function Home() {
   const [motionPattern, setMotionPattern] = useState<MotionPattern>("oiia");
   const [error, setError] = useState<string | null>(null);
   const [removeBackground, setRemoveBackground] = useState(true);
+  const [enableBgm, setEnableBgm] = useState(true);
 
   const handleImageSelect = useCallback((file: File) => {
     setImage(file);
@@ -35,6 +36,7 @@ export default function Home() {
       formData.append("image", image);
       formData.append("motion", motionPattern);
       formData.append("removeBackground", removeBackground ? "true" : "false");
+      formData.append("enableBgm", enableBgm ? "true" : "false");
 
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -54,7 +56,7 @@ export default function Home() {
     } finally {
       setIsGenerating(false);
     }
-  }, [image, motionPattern, removeBackground]);
+  }, [image, motionPattern, removeBackground, enableBgm]);
 
   const handleReset = useCallback(() => {
     setImage(null);
@@ -159,6 +161,54 @@ export default function Home() {
                           <span
                             className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
                               removeBackground ? "translate-x-5" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* BGM Toggle */}
+                    <div className="glass-card p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center">
+                            <svg
+                              className="w-5 h-5 text-accent"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={1.5}
+                                d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+                              />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-white/90 font-medium text-sm">
+                              BGM: Ievan Polkka
+                            </p>
+                            <p className="text-white/40 text-xs">
+                              Add the iconic folk melody to your video
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={enableBgm}
+                          onClick={() => setEnableBgm((v) => !v)}
+                          className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 ${
+                            enableBgm
+                              ? "bg-gradient-to-r from-primary to-accent"
+                              : "bg-white/20"
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                              enableBgm ? "translate-x-5" : "translate-x-0"
                             }`}
                           />
                         </button>
